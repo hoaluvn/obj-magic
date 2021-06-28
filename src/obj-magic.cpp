@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <limits>
 #include <map>
+#include <regex>
 
 #include "../glm/vec2.hpp"
 #include "../glm/vec3.hpp"
@@ -57,6 +58,8 @@ int main(int argc, char* argv[]) {
 		std::cerr << "      --translate[xyz] AMOUNT   translate AMOUNT amount" << std::endl;
 		std::cerr << "      --rotate[xyz] AMOUNT      rotate along axis AMOUNT degrees" << std::endl;
 		std::cerr << "      --fit[xyz] AMOUNT         uniformly scale to fit AMOUNT in dimension" << std::endl;
+		std::cerr << "      --trim_lbound[xyz] AMOUNT trim off from lowercut bound in dimension" << std::endl;
+		std::cerr << "      --trim_ubound[xyz] AMOUNT trim off from uppercut bound in dimension" << std::endl;
 		std::cerr << std::endl;
 		std::cerr << "[xyz] - long option suffixed with x, y or z operates only on that axis." << std::endl;
 		std::cerr << "No suffix (or short form) assumes all axes." << std::endl;
@@ -132,6 +135,21 @@ int main(int argc, char* argv[]) {
 	if (rotangles.z != 0.0f) temprot = rotate(temprot, rotangles.z, vec3(0,0,1));
 	mat3 rotation(temprot);
 
+	vec3 neginf(-INFINITY);
+	vec3 posinf(INFINITY);
+	vec3 lowercut, uppercut;
+
+	lowercut.x = args.arg(' ', "trim_lboundx", -INFINITY);
+	lowercut.y = args.arg(' ', "trim_lboundy", -INFINITY);
+	lowercut.z = args.arg(' ', "trim_lboundz", -INFINITY);
+	uppercut.x = args.arg(' ', "trim_uboundx", INFINITY);
+	uppercut.y = args.arg(' ', "trim_uboundy", INFINITY);
+	uppercut.z = args.arg(' ', "trim_uboundz", INFINITY);
+
+	bvec3 comp1 = notEqual(lowercut, neginf);
+	bvec3 comp2 = notEqual(uppercut, posinf);
+	bool trim_enable = any(comp1) || any(comp2);
+
 	std::ifstream file(infile.c_str(), std::ios::binary);
 	if (!file.is_open()) {
 		std::cerr << "Failed to open file " << infile << std::endl;
@@ -140,12 +158,14 @@ int main(int argc, char* argv[]) {
 
 	std::string row;
 	// Analyzing pass
-	bool analyze = info || (center.length() > 0.0f) || (fit.length() > 0.0f);
+	bool analyze = info || (center.length() > 0.0f) || (fit.length() > 0.0f) || trim_enable;
+	bool *v_trimlist = new bool[100000000];
 	if (analyze) {
 		vec3 lbound(std::numeric_limits<float>::max());
 		vec3 ubound(-std::numeric_limits<float>::max());
 		std::map<std::string, unsigned> materials;
 		unsigned long long v_count = 0, vt_count = 0, vn_count = 0, f_count = 0, p_count = 0, l_count = 0, o_count = 0;
+
 		while (getline(file, row)) {
 			std::istringstream srow(row);
 			vec3 in;
@@ -155,6 +175,15 @@ int main(int argc, char* argv[]) {
 				lbound = min(in, lbound);
 				ubound = max(in, ubound);
 				++v_count;
+				if (trim_enable) {
+					if(any(lessThan(in, lowercut)) || any(greaterThan(in, uppercut))) {
+						v_trimlist[v_count] = true;
+						//std::cout << "trim: v[" << v_count << "] " << toString(in) << std::endl;
+					}
+					else {
+						v_trimlist[v_count] = false;
+					}
+				}
 			}
 			else if (row.substr(0,3) == "vt ") ++vt_count;
 			else if (row.substr(0,3) == "vn ") ++vn_count;
@@ -239,6 +268,26 @@ int main(int argc, char* argv[]) {
 			if (old != in)
 				out << "vn " << in.x << " " << in.y << " " << in.z << std::endl;
 			else outputUnmodifiedRow(out, row);
+		} else if (row.substr(0,2) == "f ") {
+			std::regex vt_ex("/\\s*\\d+");			
+			std::regex v_ex("\\d+");			
+			std::string s;
+			bool skip_face = false;
+			regex_replace(back_inserter(s), row.begin(), row.end(), vt_ex, "");
+			auto words_begin = std::sregex_iterator(s.begin(), s.end(), v_ex);
+    		auto words_end = std::sregex_iterator();
+
+			for (std::sregex_iterator i = words_begin; i != words_end; ++i) {
+				  std::smatch match = *i;
+				  //std::string vs = match.str();
+				  int match_v = stoi(match.str());
+				  if (v_trimlist[match_v] == true) {
+					  //std::cout << "hit: " << match_v << '\n';
+					  skip_face = true;
+					  break;
+				  }
+		 	}
+			if (skip_face == false) outputUnmodifiedRow(out, row);
 		} else {
 			outputUnmodifiedRow(out, row);
 		}
