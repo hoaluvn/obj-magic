@@ -6,7 +6,6 @@
 #include <cstdlib>
 #include <limits>
 #include <map>
-#include <regex>
 
 #include "../glm/vec2.hpp"
 #include "../glm/vec3.hpp"
