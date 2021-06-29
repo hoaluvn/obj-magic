@@ -269,25 +269,18 @@ int main(int argc, char* argv[]) {
 				out << "vn " << in.x << " " << in.y << " " << in.z << std::endl;
 			else outputUnmodifiedRow(out, row);
 		} else if (row.substr(0,2) == "f ") {
-			std::regex vt_ex("/\\s*\\d+");			
-			std::regex v_ex("\\d+");			
-			std::string s;
-			bool skip_face = false;
-			regex_replace(back_inserter(s), row.begin(), row.end(), vt_ex, "");
-			auto words_begin = std::sregex_iterator(s.begin(), s.end(), v_ex);
-    		auto words_end = std::sregex_iterator();
-
-			for (std::sregex_iterator i = words_begin; i != words_end; ++i) {
-				  std::smatch match = *i;
-				  //std::string vs = match.str();
-				  int match_v = stoi(match.str());
-				  if (v_trimlist[match_v] == true) {
-					  //std::cout << "hit: " << match_v << '\n';
-					  skip_face = true;
-					  break;
-				  }
-		 	}
-			if (skip_face == false) outputUnmodifiedRow(out, row);
+			int v, vt;
+			char slash;
+			bool skip = false;
+			srow >> tempst;
+			// f v1/vt1 v2/vt2 ... vn/vtn
+			while(srow >> v >> slash >> vt) {
+				if (v_trimlist[v]) {
+					skip = true;
+					break;
+				}
+			}
+			if (!skip) outputUnmodifiedRow(out, row);
 		} else {
 			outputUnmodifiedRow(out, row);
 		}
