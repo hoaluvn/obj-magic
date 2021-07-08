@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
 		std::cerr << "      --fit[xyz] AMOUNT         uniformly scale to fit AMOUNT in dimension" << std::endl;
 		std::cerr << "      --trim_lbound[xyz] VALUE  trim off from lowercut bound in dimension" << std::endl;
 		std::cerr << "      --trim_ubound[xyz] VALUE  trim off from uppercut bound in dimension" << std::endl;
-		std::cerr << "      --trim_revert             trim off inside the bound" << std::endl;
+		std::cerr << " -r   --trim_revert             trim off inside the bound" << std::endl;
 		std::cerr << std::endl;
 		std::cerr << "[xyz] - long option suffixed with x, y or z operates only on that axis." << std::endl;
 		std::cerr << "No suffix (or short form) assumes all axes." << std::endl;
@@ -149,7 +149,7 @@ int main(int argc, char* argv[]) {
 	bvec3 comp1 = notEqual(lowercut, neginf);
 	bvec3 comp2 = notEqual(uppercut, posinf);
 	bool trim_enable = any(comp1) || any(comp2);
-	bool trim_revert = args.opt(' ', "trim_revert");
+	bool trim_revert = args.opt('r', "trim_revert");
 
 	std::ifstream file(infile.c_str(), std::ios::binary);
 	if (!file.is_open()) {
