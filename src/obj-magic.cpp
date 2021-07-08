@@ -57,8 +57,9 @@ int main(int argc, char* argv[]) {
 		std::cerr << "      --translate[xyz] AMOUNT   translate AMOUNT amount" << std::endl;
 		std::cerr << "      --rotate[xyz] AMOUNT      rotate along axis AMOUNT degrees" << std::endl;
 		std::cerr << "      --fit[xyz] AMOUNT         uniformly scale to fit AMOUNT in dimension" << std::endl;
-		std::cerr << "      --trim_lbound[xyz] AMOUNT trim off from lowercut bound in dimension" << std::endl;
-		std::cerr << "      --trim_ubound[xyz] AMOUNT trim off from uppercut bound in dimension" << std::endl;
+		std::cerr << "      --trim_lbound[xyz] VALUE  trim off from lowercut bound in dimension" << std::endl;
+		std::cerr << "      --trim_ubound[xyz] VALUE  trim off from uppercut bound in dimension" << std::endl;
+		std::cerr << "      --trim_revert             trim off inside the bound" << std::endl;
 		std::cerr << std::endl;
 		std::cerr << "[xyz] - long option suffixed with x, y or z operates only on that axis." << std::endl;
 		std::cerr << "No suffix (or short form) assumes all axes." << std::endl;
@@ -148,6 +149,7 @@ int main(int argc, char* argv[]) {
 	bvec3 comp1 = notEqual(lowercut, neginf);
 	bvec3 comp2 = notEqual(uppercut, posinf);
 	bool trim_enable = any(comp1) || any(comp2);
+	bool trim_revert = args.opt(' ', "trim_revert");
 
 	std::ifstream file(infile.c_str(), std::ios::binary);
 	if (!file.is_open()) {
@@ -176,11 +178,11 @@ int main(int argc, char* argv[]) {
 				++v_count;
 				if (trim_enable) {
 					if(any(lessThan(in, lowercut)) || any(greaterThan(in, uppercut))) {
-						v_trimlist[v_count] = true;
+						v_trimlist[v_count] = !trim_revert;
 						//std::cout << "trim: v[" << v_count << "] " << toString(in) << std::endl;
 					}
 					else {
-						v_trimlist[v_count] = false;
+						v_trimlist[v_count] = trim_revert;
 					}
 				}
 			}
@@ -272,14 +274,16 @@ int main(int argc, char* argv[]) {
 			char slash;
 			bool skip = false;
 			srow >> tempst;
+			//std::cout << "row: " << row << std::endl;
 			// f v1/vt1 v2/vt2 ... vn/vtn
 			while(srow >> v >> slash >> vt) {
+				//std::cout << "v: " << v << "/vt: " << vt << std::endl;
 				if (v_trimlist[v]) {
 					skip = true;
 					break;
 				}
 			}
-			if (!skip) outputUnmodifiedRow(out, row);
+			if (skip == false) outputUnmodifiedRow(out, row);
 		} else {
 			outputUnmodifiedRow(out, row);
 		}
