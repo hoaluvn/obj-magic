@@ -161,11 +161,14 @@ int main(int argc, char* argv[]) {
 	// Analyzing pass
 	bool analyze = info || (center.length() > 0.0f) || (fit.length() > 0.0f) || trim_enable;
 	bool *v_trimlist = new bool[100000000];
+	unsigned long long *v_mapping  = new unsigned long long[100000000];
+	unsigned long long v_count = 0, vt_count = 0;
 	if (analyze) {
 		vec3 lbound(std::numeric_limits<float>::max());
 		vec3 ubound(-std::numeric_limits<float>::max());
 		std::map<std::string, unsigned> materials;
-		unsigned long long v_count = 0, vt_count = 0, vn_count = 0, f_count = 0, p_count = 0, l_count = 0, o_count = 0;
+		unsigned long long vn_count = 0, f_count = 0, p_count = 0, l_count = 0, o_count = 0;
+		unsigned long long v_head = 1;
 
 		while (getline(file, row)) {
 			std::istringstream srow(row);
@@ -177,13 +180,15 @@ int main(int argc, char* argv[]) {
 				ubound = max(in, ubound);
 				++v_count;
 				if (trim_enable) {
-					if(any(lessThan(in, lowercut)) || any(greaterThan(in, uppercut))) {
+					if (any(lessThan(in, lowercut)) || any(greaterThan(in, uppercut))) {
 						v_trimlist[v_count] = !trim_revert;
 						//std::cout << "trim: v[" << v_count << "] " << toString(in) << std::endl;
 					}
 					else {
 						v_trimlist[v_count] = trim_revert;
 					}
+					v_mapping[v_count] = v_head;
+					if (!v_trimlist[v_count]) v_head++;
 				}
 			}
 			else if (row.substr(0,3) == "vt ") ++vt_count;
@@ -236,31 +241,39 @@ int main(int argc, char* argv[]) {
 	// Output pass
 	file.clear();
 	file.seekg(0, std::ios::beg);
+	v_count = 0;
+   vt_count = 0;
 	while (getline(file, row)) {
 		std::istringstream srow(row);
 		vec3 in;
 		std::string tempst;
 		if (row.substr(0,2) == "v ") {  // Vertices
-			srow >> tempst >> in.x >> in.y >> in.z;
-			vec3 old = in;
-			in -= center;
-			in *= mirror;
-			in *= scale;
-			in = rotation * in;
-			in += translate;
-			if (old != in)
-				out << "v " << in.x << " " << in.y << " " << in.z << std::endl;
-			else outputUnmodifiedRow(out, row);
+			++v_count;
+			if (v_trimlist[v_count] == false) {
+				srow >> tempst >> in.x >> in.y >> in.z;
+				vec3 old = in;
+				in -= center;
+				in *= mirror;
+				in *= scale;
+				in = rotation * in;
+				in += translate;
+				if (old != in)
+					out << "v " << in.x << " " << in.y << " " << in.z << std::endl;
+				else outputUnmodifiedRow(out, row);
+			}
 		} else if (row.substr(0,3) == "vt ") {  // Tex coords
-			srow >> tempst >> in.x >> in.y;
-			vec3 old = in;
-			if (flipUvX) in.x = 1.0f - in.x;
-			if (flipUvY) in.y = 1.0f - in.y;
-			in.x *= scaleUv.x;
-			in.y *= scaleUv.y;
-			if (old != in)
-				out << "vt " << in.x << " " << in.y << std::endl;
-			else outputUnmodifiedRow(out, row);
+			++vt_count;
+			if (v_trimlist[vt_count] == false) {
+				srow >> tempst >> in.x >> in.y;
+				vec3 old = in;
+				if (flipUvX) in.x = 1.0f - in.x;
+				if (flipUvY) in.y = 1.0f - in.y;
+				in.x *= scaleUv.x;
+				in.y *= scaleUv.y;
+				if (old != in)
+					out << "vt " << in.x << " " << in.y << std::endl;
+				else outputUnmodifiedRow(out, row);
+			}
 		} else if (row.substr(0,3) == "vn ") {  // Normals
 			srow >> tempst >> in.x >> in.y >> in.z;
 			vec3 old = in;
@@ -283,7 +296,16 @@ int main(int argc, char* argv[]) {
 					break;
 				}
 			}
-			if (skip == false) outputUnmodifiedRow(out, row);
+			//if (skip == false) outputUnmodifiedRow(out, row);
+			if (skip == false) {
+				std::istringstream ssrow(row);
+				ssrow >> tempst;
+				out << "f";
+				while(ssrow >> v >> slash >> vt) {
+					out << " " << v_mapping[v] << "/" << v_mapping[v];
+				}
+				out << std::endl;
+			}
 		} else {
 			outputUnmodifiedRow(out, row);
 		}
