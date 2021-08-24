@@ -58,8 +58,8 @@ int main(int argc, char* argv[]) {
 		std::cerr << "      --translate[xyz] AMOUNT   translate AMOUNT amount" << std::endl;
 		std::cerr << "      --rotate[xyz] AMOUNT      rotate along axis AMOUNT degrees" << std::endl;
 		std::cerr << "      --fit[xyz] AMOUNT         uniformly scale to fit AMOUNT in dimension" << std::endl;
-		std::cerr << "      --trim_lbound[xyz] VALUE  trim off from lowercut bound in dimension" << std::endl;
-		std::cerr << "      --trim_ubound[xyz] VALUE  trim off from uppercut bound in dimension" << std::endl;
+		std::cerr << "      --trim_lbound[xyz]=VALUE  trim off from lowercut bound in dimension" << std::endl;
+		std::cerr << "      --trim_ubound[xyz]=VALUE  trim off from uppercut bound in dimension" << std::endl;
 		std::cerr << " -r   --trim_revert             trim off inside the bound" << std::endl;
 		std::cerr << std::endl;
 		std::cerr << "[xyz] - long option suffixed with x, y or z operates only on that axis." << std::endl;
