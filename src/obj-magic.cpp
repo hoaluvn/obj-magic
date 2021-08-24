@@ -31,6 +31,7 @@ std::string toString(vec3 vec) {
 
 template<typename T> inline bool isZero(T v) { v = abs(v); return v.x < EPSILON && v.y < EPSILON && v.z < EPSILON; }
 template<typename T> inline bool isOne(T v) { return isZero(v - T(1)); }
+template<typename T> inline bool isMinusOne(T v) { return isZero(v - T(-1)); }
 template<typename T> inline bool isEqual(T a, T b) { return isZero(a - b); }
 
 int main(int argc, char* argv[]) {
@@ -93,6 +94,7 @@ int main(int argc, char* argv[]) {
 	scale.x *= args.arg(' ', "scalex", 1.0f);
 	scale.y *= args.arg(' ', "scaley", 1.0f);
 	scale.z *= args.arg(' ', "scalez", 1.0f);
+	bool bypass_scale = isOne(scale);
 
 	vec2 scaleUv(args.arg(' ', "scaleuv", 1.0f));
 	scaleUv.x *= args.arg(' ', "scaleuvx", 1.0f);
@@ -105,18 +107,23 @@ int main(int argc, char* argv[]) {
 	translate.x += args.arg(' ', "translatex", 0.0f);
 	translate.y += args.arg(' ', "translatey", 0.0f);
 	translate.z += args.arg(' ', "translatez", 0.0f);
+	bool bypass_translate = isZero(translate);
 
+	//vec3 center	= vec3(0);
 	vec3 center;
 	if (args.opt('c', "center"))  center = vec3(1);
 	if (args.opt(' ', "centerx")) center.x = 1;
 	if (args.opt(' ', "centery")) center.y = 1;
 	if (args.opt(' ', "centerz")) center.z = 1;
+	bool bypass_center = isZero(center);
 
 	ivec3 mirror(1);
 	if (args.opt(' ', "mirror"))  mirror = ivec3(-1);
 	if (args.opt(' ', "mirrorx")) mirror.x = -1;
 	if (args.opt(' ', "mirrory")) mirror.y = -1;
 	if (args.opt(' ', "mirrorz")) mirror.z = -1;
+	bool bypass_mirror = isMinusOne(mirror);
+	bypass_mirror = false;
 
 	vec3 fit;
 	fit.x = args.arg(' ', "fitx", 0.0f);
@@ -134,6 +141,7 @@ int main(int argc, char* argv[]) {
 	if (rotangles.y != 0.0f) temprot = rotate(temprot, rotangles.y, vec3(0,1,0));
 	if (rotangles.z != 0.0f) temprot = rotate(temprot, rotangles.z, vec3(0,0,1));
 	mat3 rotation(temprot);
+	bool bypass_rotation = isZero(rotangles);
 
 	vec3 neginf(-INFINITY);
 	vec3 posinf(INFINITY);
@@ -163,6 +171,7 @@ int main(int argc, char* argv[]) {
 	bool *v_trimlist = new bool[100000000];
 	unsigned long long *v_mapping  = new unsigned long long[100000000];
 	unsigned long long v_count = 0, vt_count = 0;
+	bool has_vt = false;
 	if (analyze) {
 		vec3 lbound(std::numeric_limits<float>::max());
 		vec3 ubound(-std::numeric_limits<float>::max());
@@ -229,6 +238,8 @@ int main(int argc, char* argv[]) {
 			scale *= fitScale;
 		}
 	}
+
+	if (vt_count > 0) has_vt = true;
 	
 	auto outputUnmodifiedRow = [](std::ostream& out, const std::string& row) {
 		// getline stops at \n, so there might be \r hiding in there if we are reading CRLF files
@@ -241,7 +252,7 @@ int main(int argc, char* argv[]) {
 	// Output pass
 	file.clear();
 	file.seekg(0, std::ios::beg);
-	v_count = 0;
+	v_count  = 0;
    vt_count = 0;
 	while (getline(file, row)) {
 		std::istringstream srow(row);
@@ -252,11 +263,11 @@ int main(int argc, char* argv[]) {
 			if (v_trimlist[v_count] == false) {
 				srow >> tempst >> in.x >> in.y >> in.z;
 				vec3 old = in;
-				in -= center;
-				in *= mirror;
-				in *= scale;
-				in = rotation * in;
-				in += translate;
+				if (! bypass_center) in -= center;
+				if (! bypass_mirror) in *= mirror;
+				if (! bypass_scale)  in *= scale;
+				if (! bypass_rotation)  in = rotation * in;
+				if (! bypass_translate) in += translate;
 				if (old != in)
 					out << "v " << in.x << " " << in.y << " " << in.z << std::endl;
 				else outputUnmodifiedRow(out, row);
@@ -282,18 +293,28 @@ int main(int argc, char* argv[]) {
 			if (old != in)
 				out << "vn " << in.x << " " << in.y << " " << in.z << std::endl;
 			else outputUnmodifiedRow(out, row);
-		} else if (row.substr(0,2) == "f ") {
+		} else if (trim_enable && row.substr(0,2) == "f ") {
 			int v, vt;
 			char slash;
 			bool skip = false;
 			srow >> tempst;
 			//std::cout << "row: " << row << std::endl;
 			// f v1/vt1 v2/vt2 ... vn/vtn
-			while(srow >> v >> slash >> vt) {
-				//std::cout << "v: " << v << "/vt: " << vt << std::endl;
-				if (v_trimlist[v]) {
-					skip = true;
-					break;
+			if (has_vt) {
+				while(srow >> v >> slash >> vt) {
+					//std::cout << "v: " << v << "/vt: " << vt << std::endl;
+					if (v_trimlist[v]) {
+						skip = true;
+						break;
+					}
+				}
+			} else {
+				while(srow >> v) {
+					//std::cout << "v: " << v << std::endl;
+					if (v_trimlist[v]) {
+						skip = true;
+						break;
+					}
 				}
 			}
 			//if (skip == false) outputUnmodifiedRow(out, row);
@@ -301,8 +322,15 @@ int main(int argc, char* argv[]) {
 				std::istringstream ssrow(row);
 				ssrow >> tempst;
 				out << "f";
-				while(ssrow >> v >> slash >> vt) {
-					out << " " << v_mapping[v] << "/" << v_mapping[v];
+				if (has_vt) {
+					while(ssrow >> v >> slash >> vt) {
+						out << " " << v_mapping[v] << "/" << v_mapping[v];
+					}
+				} else {
+					while(ssrow >> v) {
+						//std::cout << "v: " << v << std::endl;
+						out << " " << v_mapping[v];
+					}
 				}
 				out << std::endl;
 			}
